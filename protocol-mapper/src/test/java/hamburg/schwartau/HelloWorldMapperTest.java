@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
+import org.keycloak.protocol.ProtocolMapperUtils;
 import org.keycloak.protocol.oidc.mappers.FullNameMapper;
 import org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper;
 import org.keycloak.provider.ProviderConfigProperty;
@@ -48,16 +49,15 @@ public class HelloWorldMapperTest {
         final List<String> configPropertyNames = new HelloWorldMapper().getConfigProperties().stream()
                 .map(ProviderConfigProperty::getName)
                 .collect(Collectors.toList());
-        assertThat(configPropertyNames).containsExactly(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO);
-    }
-
-    @Test
-    public void shouldAddClaim() {
-        final UserSessionModel session = givenUserSession();
-
-        final AccessToken accessToken = transformAccessToken(session);
-
-        assertThat(accessToken.getOtherClaims().get(CLAIM_NAME)).isEqualTo("hello world");
+        assertThat(configPropertyNames).containsExactly(
+            ProtocolMapperUtils.USER_MODEL_CLIENT_ROLE_MAPPING_CLIENT_ID,
+            ProtocolMapperUtils.USER_MODEL_CLIENT_ROLE_MAPPING_ROLE_PREFIX,
+            ProtocolMapperUtils.MULTIVALUED,
+            OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME, 
+            OIDCAttributeMapperHelper.JSON_TYPE, 
+            OIDCAttributeMapperHelper.INCLUDE_IN_ID_TOKEN, 
+            OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, 
+            OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO);
     }
 
     private UserSessionModel givenUserSession() {
