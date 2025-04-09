@@ -59,25 +59,4 @@ public class HelloWorldMapperTest {
             OIDCAttributeMapperHelper.INCLUDE_IN_ACCESS_TOKEN, 
             OIDCAttributeMapperHelper.INCLUDE_IN_USERINFO);
     }
-
-    private UserSessionModel givenUserSession() {
-        UserSessionModel userSession = Mockito.mock(UserSessionModel.class);
-        UserModel user = Mockito.mock(UserModel.class);
-        when(userSession.getUser()).thenReturn(user);
-        return userSession;
-    }
-
-
-    private AccessToken transformAccessToken(UserSessionModel userSessionModel) {
-        final ProtocolMapperModel mappingModel = new ProtocolMapperModel();
-        mappingModel.setConfig(createConfig());
-        return new HelloWorldMapper().transformAccessToken(new AccessToken(), mappingModel, null, userSessionModel, null);
-    }
-
-    private Map<String, String> createConfig() {
-        final Map<String, String> result = new HashMap<>();
-        result.put("access.token.claim", "true");
-        result.put("claim.name", CLAIM_NAME);
-        return result;
-    }
 }
