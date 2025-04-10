@@ -1,8 +1,10 @@
 package hamburg.schwartau;
 
+import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.ProtocolMapperUtils;
@@ -13,12 +15,15 @@ import org.keycloak.protocol.oidc.mappers.OIDCIDTokenMapper;
 import org.keycloak.protocol.oidc.mappers.UserClientRoleMappingMapper;
 import org.keycloak.protocol.oidc.mappers.UserInfoTokenMapper;
 import org.keycloak.provider.ProviderConfigProperty;
+import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.IDToken;
 import org.keycloak.utils.RoleResolveUtil;
 
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /*
@@ -99,22 +104,74 @@ public class HelloWorldMapper extends AbstractOIDCProtocolMapper implements OIDC
     }
 
     @Override
-    protected void setClaim(final IDToken token,
-                            final ProtocolMapperModel mappingModel,
-                            final UserSessionModel userSession,
-                            final KeycloakSession keycloakSession,
-                            final ClientSessionContext clientSessionCtx) {
-        
-        // Filter composite roles
-        List<String> topLevelRoles = clientSessionCtx.getRolesStream()
-                .filter(RoleModel::isComposite)
-                .map(RoleModel::getName)
-                .collect(Collectors.toList());
+    public AccessToken transformAccessToken(
+        AccessToken token,
+        ProtocolMapperModel mappingModel,
+        KeycloakSession session,
+        UserSessionModel userSession,
+        ClientSessionContext clientSessionCtx
+    ) {
+        System.out.println(">>> [Mapper] Starting transformAccessToken");
+        token.setRealmAccess(null);
+        token.setResourceAccess(new java.util.HashMap<>());
 
-        // Manually set the claim in the token
-        token.getOtherClaims().put(mappingModel.getName(), new ArrayList<>() {{
-            add("Roles: " + String.join(", ", topLevelRoles));
-        }});
+        ClientModel client = clientSessionCtx.getClientSession().getClient();
+        System.out.println(">>> [Mapper] Client: " + client.getClientId());
+
+        // Alla roller som användaren har (inklusive composite, ärvda)
+        Set<RoleModel> allRoles = clientSessionCtx.getRolesStream().collect(Collectors.toSet());
+
+        // Bygg en set med alla roller som ingår i någon composite (de är "barn")
+        Set<RoleModel> subRoles = new HashSet<>();
+        for (RoleModel role : allRoles) {
+            if (role.isComposite()) {
+                subRoles.addAll(role.getCompositesStream().collect(Collectors.toSet()));
+            }
+        }
+
+        // Behåll endast roller som inte är barn i en annan composite (dvs "top-level")
+        Set<RoleModel> topLevelRoles = allRoles.stream()
+            .filter(role -> !subRoles.contains(role))
+            .collect(Collectors.toSet());
+
+        System.out.println(">>> [Mapper] Top-level roles:");
+        topLevelRoles.forEach(r -> System.out.println("   - " + r.getName()));
+
+        for (RoleModel role : topLevelRoles) {
+            if (role.getContainer() instanceof RealmModel) {
+                AccessToken.Access realmAccess = token.getRealmAccess();
+                if (realmAccess == null) {
+                    realmAccess = new AccessToken.Access();
+                    token.setRealmAccess(realmAccess);
+                }
+                realmAccess.addRole(role.getName());
+            } else if (role.getContainer() instanceof ClientModel) {
+                String clientId = ((ClientModel) role.getContainer()).getClientId();
+                AccessToken.Access access = token.getResourceAccess().computeIfAbsent(clientId, k -> new AccessToken.Access());
+                access.addRole(role.getName());
+            }
+        }
+
+        return token;
     }
+
+    // @Override
+    // protected void setClaim(final IDToken token,
+    //                         final ProtocolMapperModel mappingModel,
+    //                         final UserSessionModel userSession,
+    //                         final KeycloakSession keycloakSession,
+    //                         final ClientSessionContext clientSessionCtx) {
+        
+    //     // Filter composite roles
+    //     List<String> topLevelRoles = clientSessionCtx.getRolesStream()
+    //             .filter(RoleModel::isComposite)
+    //             .map(RoleModel::getName)
+    //             .collect(Collectors.toList());
+
+    //     // Manually set the claim in the token
+    //     token.getOtherClaims().put(mappingModel.getName(), new ArrayList<>() {{
+    //         add("Roles: " + String.join(", ", topLevelRoles));
+    //     }});
+    // }
 
 }
